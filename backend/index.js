@@ -16,7 +16,7 @@ const app = express();
 app.use(cors({
   origin: [
     'http://localhost:5173',
-    'https://your-frontend.onrender.com', // Replace with your actual frontend Render URL
+    'https://phish-guard-1.onrender.com', // Your actual frontend Render URL
   ],
   credentials: true
 }));
