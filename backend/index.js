@@ -17,6 +17,7 @@ app.use(cors({
   origin: [
     'http://localhost:5173',
     'https://phish-guard-1.onrender.com', // Your actual frontend Render URL
+    'https://phish-guard-seven.vercel.app', // Vercel frontend
   ],
   credentials: true
 }));
