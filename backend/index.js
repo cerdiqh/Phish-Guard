@@ -147,6 +147,7 @@ app.post('/api/campaigns', auth('admin'), async (req, res) => {
 
 // Register
 app.post('/api/register', async (req, res) => {
+  console.log('Register request:', req.body); // Log registration attempts
   const { username, email, password, role } = req.body;
   const hashedPassword = await bcrypt.hash(password, 10);
   try {
