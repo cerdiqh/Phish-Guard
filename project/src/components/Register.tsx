@@ -9,12 +9,14 @@ const Register: React.FC<{ onRegister: () => void; onBack?: () => void }> = ({ o
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSuccess('');
     try {
-      await axios.post('http://localhost:5000/api/register', { username, email, password, role });
+      await axios.post(`${API_URL}/api/register`, { username, email, password, role });
       setSuccess('Registration successful! You can now log in.');
       setUsername(''); setEmail(''); setPassword(''); setRole('employee');
       onRegister();

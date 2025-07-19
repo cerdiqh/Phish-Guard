@@ -11,6 +11,8 @@ import Register from './components/Register';
 import { Toaster } from 'react-hot-toast';
 import { Campaign } from './types';
 import LandingPage from './components/LandingPage';
+import Chatbot from './components/Chatbot';
+import PhishingAnalyzer from './components/PhishingAnalyzer';
 
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -53,6 +55,8 @@ function App() {
         return <Reports user={user} />;
       case 'training':
         return <Training />;
+      case 'analyzer':
+        return <PhishingAnalyzer />;
       default:
         return <Dashboard onTabChange={setActiveTab} campaigns={campaigns} />;
     }
@@ -61,6 +65,7 @@ function App() {
   return (
     <>
       <Toaster position="top-right" />
+      <Chatbot context={activeTab} />
       <Layout activeTab={activeTab} onTabChange={setActiveTab}>
         <div className="flex justify-end p-2">
           <span className="mr-4">Logged in as: {user?.username} ({user?.role})</span>

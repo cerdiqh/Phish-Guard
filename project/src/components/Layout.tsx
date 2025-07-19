@@ -13,7 +13,8 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange }) => 
     { id: 'campaigns', label: 'Campaigns', icon: Menu },
     { id: 'templates', label: 'Templates', icon: Menu },
     { id: 'reports', label: 'Reports', icon: Menu },
-    { id: 'training', label: 'Training', icon: Menu }
+    { id: 'training', label: 'Training', icon: Menu },
+    { id: 'analyzer', label: 'Analyzer', icon: Menu },
   ];
 
   return (

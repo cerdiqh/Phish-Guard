@@ -23,21 +23,21 @@ const CampaignManager: React.FC<CampaignManagerProps> = ({ user, campaigns, setC
 
   useEffect(() => {
     const token = localStorage.getItem('token');
-    axios.get('http://localhost:5000/api/campaigns', {
+    axios.get('https://phish-guard-60np.onrender.com/api/campaigns', {
       headers: { Authorization: `Bearer ${token}` }
     })
       .then(res => setCampaigns(res.data))
       .catch(err => console.error('Failed to fetch campaigns', err));
 
     // Real-time updates
-    const socket = socketIOClient('http://localhost:5000');
+    const socket = socketIOClient('https://phish-guard-60np.onrender.com');
     socket.on('campaignCreated', (campaign) => {
       setCampaigns(prev => [campaign, ...prev]);
       toast.success(`New campaign created: ${campaign.name}`);
     });
     socket.on('emailStatus', ({ campaignId, email, status, error }) => {
       setCampaigns(prev => prev.map(c => {
-        if (c.id === campaignId || c._id === campaignId) {
+        if (c.id === campaignId) {
           const emailStatus = c.emailStatus ? [...c.emailStatus] : [];
           const idx = emailStatus.findIndex(e => e.email === email);
           if (idx !== -1) {
@@ -57,7 +57,7 @@ const CampaignManager: React.FC<CampaignManagerProps> = ({ user, campaigns, setC
     });
     socket.on('emailOpened', ({ campaignId, email, openCount }) => {
       setCampaigns(prev => prev.map(c => {
-        if (c.id === campaignId || c._id === campaignId) {
+        if (c.id === campaignId) {
           const emailStatus = c.emailStatus ? [...c.emailStatus] : [];
           const idx = emailStatus.findIndex(e => e.email === email);
           if (idx !== -1) {
@@ -71,7 +71,7 @@ const CampaignManager: React.FC<CampaignManagerProps> = ({ user, campaigns, setC
     });
     socket.on('emailClicked', ({ campaignId, email, clickCount }) => {
       setCampaigns(prev => prev.map(c => {
-        if (c.id === campaignId || c._id === campaignId) {
+        if (c.id === campaignId) {
           const emailStatus = c.emailStatus ? [...c.emailStatus] : [];
           const idx = emailStatus.findIndex(e => e.email === email);
           if (idx !== -1) {
@@ -141,7 +141,7 @@ const CampaignManager: React.FC<CampaignManagerProps> = ({ user, campaigns, setC
     };
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.post('http://localhost:5000/api/campaigns', newCampaignData, {
+      const res = await axios.post('https://phish-guard-60np.onrender.com/api/campaigns', newCampaignData, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setCampaigns((prev) => [res.data, ...prev]);

@@ -6,11 +6,13 @@ const Login: React.FC<{ onLogin: (user: any) => void; onBack?: () => void }> = (
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     try {
-      const res = await axios.post('http://localhost:5000/api/login', { email, password });
+      const res = await axios.post(`${API_URL}/api/login`, { email, password });
       localStorage.setItem('token', res.data.token);
       onLogin(res.data.user);
     } catch (err: any) {

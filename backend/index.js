@@ -13,7 +13,13 @@ const http = require('http');
 const { Server } = require('socket.io');
 
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: [
+    'http://localhost:5173',
+    'https://your-frontend.onrender.com', // Replace with your actual frontend Render URL
+  ],
+  credentials: true
+}));
 app.use(express.json());
 
 mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/phishguard', {
@@ -222,6 +228,66 @@ app.get('/api/reports', auth(), (req, res) => {
   // Employee: only see their own reports
   const userReports = reports.filter(r => r.userId === req.user.userId);
   res.json(userReports);
+});
+
+// AI-powered phishing analyzer endpoint (mocked for demo, enhanced for links)
+app.post('/api/analyze-phishing', async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email text is required.' });
+
+  const lower = email.toLowerCase();
+  let analysis = '';
+
+  // Check for suspicious links
+  const suspiciousLinkPatterns = [
+    /http:\/\/login-?\w*\.(com|net|org)/,
+    /http:\/\/\w+-?secure\.(com|net|org)/,
+    /reset-password/,
+    /verify-your-account/,
+    /suspicious-link/,
+    /bank|paypal|account|secure|update|confirm/,
+  ];
+  const safeLinkPatterns = [
+    /https:\/\/www\.microsoft\.com/,
+    /https:\/\/www\.google\.com/,
+    /https:\/\/github\.com/,
+    /https:\/\/darey\.io/,
+  ];
+  const containsSuspiciousLink = suspiciousLinkPatterns.some((re) => re.test(lower));
+  const containsSafeLink = safeLinkPatterns.some((re) => re.test(lower));
+
+  // Detect if input is a link (URL)
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const isLink = urlRegex.test(email.trim());
+
+  if (isLink) {
+    if (containsSuspiciousLink) {
+      analysis = `This link is likely a phishing attempt.\n\nReasons:\n- The link matches patterns commonly used in phishing attacks.\n- Be cautious with links that ask for credentials, especially if they look unusual or urgent.`;
+    } else if (containsSafeLink) {
+      analysis = `This link appears to be safe and from a trusted source.\n\nHowever, always verify the sender and context before clicking any link.`;
+    } else {
+      analysis = `This link does not contain obvious signs of phishing, but always verify the sender and be cautious with unexpected requests or links.`;
+    }
+  } else {
+    if (lower.includes('password') || lower.includes('urgent') || lower.includes('click here') || lower.includes('verify your account')) {
+      analysis = `This email is likely a phishing attempt.\n\nReasons:\n- It contains urgent language or requests for sensitive information.\n- Phrases like 'password', 'urgent', or 'verify your account' are common in phishing.\n- Be cautious with links or attachments.`;
+    } else if (lower.includes('invoice') || lower.includes('payment')) {
+      analysis = `This email may be a phishing attempt, especially if you weren't expecting an invoice or payment request.\n\nCheck the sender's address and avoid clicking links if unsure.`;
+    } else {
+      analysis = `This email does not contain obvious signs of phishing, but always verify the sender and be cautious with unexpected requests or links.`;
+    }
+  }
+
+  // Add a random tip for realism
+  const tips = [
+    'Always check the sender’s email address carefully.',
+    'Hover over links to see where they really go.',
+    'Never share your password via email.',
+    'Report suspicious emails to your IT/security team.'
+  ];
+  analysis += `\n\nTip: ${tips[Math.floor(Math.random() * tips.length)]}`;
+
+  res.json({ analysis });
 });
 
 // Start server with Socket.IO
