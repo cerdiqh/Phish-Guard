@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Routes, Route, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import Layout from './components/Layout';
 import Dashboard from './components/Dashboard';
 import CampaignManager from './components/CampaignManager';
@@ -8,38 +8,95 @@ import Reports from './components/Reports';
 import Training from './components/Training';
 import Login from './components/Login';
 import Register from './components/Register';
-import { Toaster } from 'react-hot-toast';
-import { Campaign } from './types';
+import ForgotPassword from './components/ForgotPassword';
+import ResetPassword from './components/ResetPassword';
+import UserManagement from './components/UserManagement';
+import UserProfile from './components/UserProfile';
 import LandingPage from './components/LandingPage';
 import Chatbot from './components/Chatbot';
 import PhishingAnalyzer from './components/PhishingAnalyzer';
+import { Toaster } from 'react-hot-toast';
+import { Campaign } from './types';
+
+interface Notification { id: string; message: string; time: string; read: boolean; }
+
+const DARK_KEY = 'phishguard_dark';
 
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [user, setUser] = useState<any>(null);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [showAuth, setShowAuth] = useState<'login' | 'register' | null>(null);
+  const [showAuth, setShowAuth] = useState<'login' | 'register' | 'forgot' | null>(null);
+  const [darkMode, setDarkMode] = useState(() => {
+    try { return localStorage.getItem(DARK_KEY) === 'true'; } catch { return false; }
+  });
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
-  const handleLogin = (user: any) => {
-    setUser(user);
-    setShowAuth(null);
-    navigate('/');
+  const resetToken = searchParams.get('token');
+  const isResetPage = searchParams.get('reset') === '1' && !!resetToken;
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', darkMode);
+    try { localStorage.setItem(DARK_KEY, String(darkMode)); } catch {}
+  }, [darkMode]);
+
+  const addNotification = (message: string) => {
+    const n: Notification = {
+      id: Date.now().toString(),
+      message,
+      time: new Date().toLocaleTimeString(),
+      read: false,
+    };
+    setNotifications(prev => [n, ...prev].slice(0, 20));
   };
+
+  const handleLogin = (u: any) => {
+    setUser(u);
+    setShowAuth(null);
+    addNotification(`Welcome back, ${u.username}!`);
+  };
+
   const handleLogout = () => {
     setUser(null);
     localStorage.removeItem('token');
-    navigate('/login');
+    setNotifications([]);
+    setCampaigns([]);
+    setActiveTab('dashboard');
   };
 
+  if (isResetPage) {
+    return (
+      <>
+        <Toaster position="top-right" />
+        <ResetPassword token={resetToken!} onSuccess={() => { navigate('/'); setShowAuth('login'); }} />
+      </>
+    );
+  }
+
   if (!user) {
+    if (showAuth === 'forgot') {
+      return (
+        <>
+          <Toaster position="top-right" />
+          <ForgotPassword onBack={() => setShowAuth('login')} />
+        </>
+      );
+    }
     if (!showAuth) {
       return <LandingPage onLogin={() => setShowAuth('login')} onRegister={() => setShowAuth('register')} />;
     }
     return showAuth === 'login' ? (
-      <Login onLogin={handleLogin} onBack={() => setShowAuth(null)} />
+      <>
+        <Toaster position="top-right" />
+        <Login onLogin={handleLogin} onBack={() => setShowAuth(null)} onForgotPassword={() => setShowAuth('forgot')} />
+      </>
     ) : (
-      <Register onRegister={() => setShowAuth('login')} onBack={() => setShowAuth(null)} />
+      <>
+        <Toaster position="top-right" />
+        <Register onRegister={() => setShowAuth('login')} onBack={() => setShowAuth(null)} />
+      </>
     );
   }
 
@@ -48,7 +105,7 @@ function App() {
       case 'dashboard':
         return <Dashboard onTabChange={setActiveTab} campaigns={campaigns} />;
       case 'campaigns':
-        return <CampaignManager user={user} campaigns={campaigns} setCampaigns={setCampaigns} />;
+        return <CampaignManager user={user} campaigns={campaigns} setCampaigns={setCampaigns} onNotify={addNotification} />;
       case 'templates':
         return <TemplateLibrary user={user} />;
       case 'reports':
@@ -57,6 +114,10 @@ function App() {
         return <Training />;
       case 'analyzer':
         return <PhishingAnalyzer />;
+      case 'users':
+        return user.role === 'admin' ? <UserManagement currentUserId={user._id} /> : null;
+      case 'profile':
+        return <UserProfile />;
       default:
         return <Dashboard onTabChange={setActiveTab} campaigns={campaigns} />;
     }
@@ -66,11 +127,16 @@ function App() {
     <>
       <Toaster position="top-right" />
       <Chatbot context={activeTab} />
-      <Layout activeTab={activeTab} onTabChange={setActiveTab}>
-        <div className="flex justify-end p-2">
-          <span className="mr-4">Logged in as: {user?.username} ({user?.role})</span>
-          <button onClick={handleLogout} className="bg-red-500 text-white px-3 py-1 rounded">Logout</button>
-        </div>
+      <Layout
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        user={user}
+        onLogout={handleLogout}
+        darkMode={darkMode}
+        onToggleDark={() => setDarkMode(d => !d)}
+        notifications={notifications}
+        onClearNotifications={() => setNotifications([])}
+      >
         {renderContent()}
       </Layout>
     </>

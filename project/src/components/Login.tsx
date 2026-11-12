@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 
-const Login: React.FC<{ onLogin: (user: any) => void; onBack?: () => void }> = ({ onLogin, onBack }) => {
+const Login: React.FC<{ onLogin: (user: any) => void; onBack?: () => void; onForgotPassword?: () => void }> = ({ onLogin, onBack, onForgotPassword }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -36,8 +36,11 @@ const Login: React.FC<{ onLogin: (user: any) => void; onBack?: () => void }> = (
           {error && <div className="text-red-600 text-center">{error}</div>}
           <button type="submit" className="w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white py-2 rounded-lg font-semibold shadow-lg hover:scale-105 transform transition-all duration-200">Login</button>
         </form>
+        {onForgotPassword && (
+          <button onClick={onForgotPassword} className="mt-4 w-full text-blue-500 hover:underline text-sm transition">Forgot your password?</button>
+        )}
         {onBack && (
-          <button onClick={onBack} className="mt-6 w-full text-blue-600 hover:underline transition">← Back to Home</button>
+          <button onClick={onBack} className="mt-2 w-full text-blue-600 hover:underline transition">← Back to Home</button>
         )}
       </div>
       <style>{`
