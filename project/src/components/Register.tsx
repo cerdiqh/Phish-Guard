@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 
-const Register: React.FC<{ onRegister: () => void; onBack?: () => void }> = ({ onRegister, onBack }) => {
+const Register: React.FC<{ onRegister: (requiresVerification?: boolean) => void; onBack?: () => void }> = ({ onRegister, onBack }) => {
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -16,10 +16,9 @@ const Register: React.FC<{ onRegister: () => void; onBack?: () => void }> = ({ o
     setError('');
     setSuccess('');
     try {
-      await axios.post(`${API_URL}/api/register`, { username, email, password, role });
-      setSuccess('Registration successful! You can now log in.');
+      const res = await axios.post(`${API_URL}/api/register`, { username, email, password, role });
       setUsername(''); setEmail(''); setPassword(''); setRole('employee');
-      onRegister();
+      onRegister(res.data.requiresVerification);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Registration failed');
     }

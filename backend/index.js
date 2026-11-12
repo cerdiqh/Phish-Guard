@@ -235,13 +235,43 @@ app.post('/api/register', authLimiter, async (req, res) => {
   if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
   try {
     const hashed = await bcrypt.hash(password, 12);
-    const user = new User({ username: username.trim(), email: email.toLowerCase().trim(), password: hashed, role: 'employee' });
+    const verifyToken = crypto.randomBytes(32).toString('hex');
+    const emailEnabled = !!process.env.EMAIL_USER;
+    const user = new User({
+      username: username.trim(),
+      email: email.toLowerCase().trim(),
+      password: hashed,
+      role: 'employee',
+      emailVerified: !emailEnabled,
+      verifyToken: emailEnabled ? verifyToken : undefined,
+    });
     await user.save();
     await AuditLog.create({ userEmail: email.toLowerCase().trim(), action: 'register', details: `New user registered: ${username}`, ip: req.ip });
-    res.status(201).json({ message: 'User registered' });
+    if (emailEnabled) {
+      await sendMail({
+        to: email.toLowerCase().trim(),
+        subject: 'Verify your PhishGuard account',
+        html: `<h2>Welcome to PhishGuard!</h2><p>Click the link below to verify your email address:</p><p><a href="${FRONTEND_URL}?verify=${verifyToken}" style="background:#2563eb;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;display:inline-block">Verify Email</a></p><p>If you didn't create this account, ignore this email.</p>`,
+      });
+      return res.status(201).json({ message: 'Registration successful! Check your email to verify your account.', requiresVerification: true });
+    }
+    res.status(201).json({ message: 'User registered successfully', requiresVerification: false });
   } catch (err) {
     if (err.code === 11000) return res.status(400).json({ error: 'Username or email already in use' });
     res.status(400).json({ error: 'Registration failed' });
+  }
+});
+
+app.get('/api/verify-email/:token', async (req, res) => {
+  try {
+    const user = await User.findOne({ verifyToken: req.params.token });
+    if (!user) return res.status(400).json({ error: 'Invalid or expired verification link' });
+    user.emailVerified = true;
+    user.verifyToken = undefined;
+    await user.save();
+    res.json({ message: 'Email verified successfully! You can now log in.' });
+  } catch {
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
@@ -253,6 +283,7 @@ app.post('/api/login', authLimiter, async (req, res) => {
     if (!user) return res.status(400).json({ error: 'Invalid credentials' });
     const ok = await bcrypt.compare(password, user.password);
     if (!ok) return res.status(400).json({ error: 'Invalid credentials' });
+    if (!user.emailVerified) return res.status(400).json({ error: 'Please verify your email before logging in. Check your inbox for the verification link.' });
     const token = jwt.sign({ userId: user._id, role: user.role }, JWT_SECRET, { expiresIn: '1d' });
     await AuditLog.create({ userId: user._id, userEmail: user.email, action: 'login', details: `User logged in`, ip: req.ip });
     res.json({ token, user: { _id: user._id, username: user.username, email: user.email, role: user.role } });
@@ -394,6 +425,23 @@ app.delete('/api/templates/:id', auth(), async (req, res) => {
   if (!template) return res.status(404).json({ error: 'Not found' });
   await logAudit(req, 'template_delete', `Deleted template: ${template.name}`);
   res.json({ message: 'Deleted' });
+});
+
+app.post('/api/templates/:id/send-test', auth(), async (req, res) => {
+  if (!['admin', 'manager'].includes(req.user.role)) return res.status(403).json({ error: 'Forbidden' });
+  const { toEmail } = req.body;
+  if (!toEmail) return res.status(400).json({ error: 'Recipient email required' });
+  const template = await Template.findById(req.params.id);
+  if (!template) return res.status(404).json({ error: 'Template not found' });
+  try {
+    const html = `<div style="border:2px dashed #f59e0b;padding:12px;margin-bottom:16px;background:#fffbeb;border-radius:8px;font-family:sans-serif;font-size:13px;color:#92400e;">
+      ⚠️ <strong>PHISHGUARD TEST EMAIL</strong> — This is a simulation test, not a real phishing email.
+    </div>` + template.content.replace(/\[PHISHING_LINK\]/g, '<a href="#">[SIMULATED LINK]</a>');
+    await sendMail({ to: toEmail, subject: `[TEST] ${template.subject}`, html });
+    res.json({ message: `Test email sent to ${toEmail}` });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to send email. Check email configuration.' });
+  }
 });
 
 // ─── Campaigns ────────────────────────────────────────────────────────────────

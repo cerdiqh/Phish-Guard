@@ -18,6 +18,7 @@ import AuditLog from './components/AuditLog';
 import LandingPage from './components/LandingPage';
 import Chatbot from './components/Chatbot';
 import PhishingAnalyzer from './components/PhishingAnalyzer';
+import VerifyEmail from './components/VerifyEmail';
 import { Toaster } from 'react-hot-toast';
 import { Campaign } from './types';
 
@@ -29,7 +30,7 @@ function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [user, setUser] = useState<any>(null);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [showAuth, setShowAuth] = useState<'login' | 'register' | 'forgot' | null>(null);
+  const [showAuth, setShowAuth] = useState<'login' | 'register' | 'forgot' | 'verify' | null>(null);
   const [darkMode, setDarkMode] = useState(() => {
     try { return localStorage.getItem(DARK_KEY) === 'true'; } catch { return false; }
   });
@@ -39,6 +40,7 @@ function App() {
 
   const resetToken = searchParams.get('token');
   const isResetPage = searchParams.get('reset') === '1' && !!resetToken;
+  const verifyToken = searchParams.get('verify');
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', darkMode);
@@ -78,12 +80,29 @@ function App() {
     );
   }
 
+  if (verifyToken) {
+    return (
+      <>
+        <Toaster position="top-right" />
+        <VerifyEmail token={verifyToken} onGoToLogin={() => { navigate('/'); setShowAuth('login'); }} />
+      </>
+    );
+  }
+
   if (!user) {
     if (showAuth === 'forgot') {
       return (
         <>
           <Toaster position="top-right" />
           <ForgotPassword onBack={() => setShowAuth('login')} />
+        </>
+      );
+    }
+    if (showAuth === 'verify') {
+      return (
+        <>
+          <Toaster position="top-right" />
+          <VerifyEmail onGoToLogin={() => setShowAuth('login')} />
         </>
       );
     }
@@ -98,7 +117,7 @@ function App() {
     ) : (
       <>
         <Toaster position="top-right" />
-        <Register onRegister={() => setShowAuth('login')} onBack={() => setShowAuth(null)} />
+        <Register onRegister={(requiresVerification) => requiresVerification ? setShowAuth('verify') : setShowAuth('login')} onBack={() => setShowAuth(null)} />
       </>
     );
   }

@@ -7,6 +7,8 @@ const UserSchema = new mongoose.Schema({
   role: { type: String, enum: ['admin', 'manager', 'employee'], default: 'employee' },
   resetToken: { type: String },
   resetTokenExpiry: { type: Date },
+  emailVerified: { type: Boolean, default: false },
+  verifyToken: { type: String },
 }, { timestamps: true });
 
 module.exports = mongoose.model('User', UserSchema);
