@@ -5,7 +5,6 @@ const Register: React.FC<{ onRegister: (requiresVerification?: boolean) => void;
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState('employee');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -16,8 +15,8 @@ const Register: React.FC<{ onRegister: (requiresVerification?: boolean) => void;
     setError('');
     setSuccess('');
     try {
-      const res = await axios.post(`${API_URL}/api/register`, { username, email, password, role });
-      setUsername(''); setEmail(''); setPassword(''); setRole('employee');
+      const res = await axios.post(`${API_URL}/api/register`, { username, email, password });
+      setUsername(''); setEmail(''); setPassword('');
       onRegister(res.data.requiresVerification);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Registration failed');
@@ -40,14 +39,6 @@ const Register: React.FC<{ onRegister: (requiresVerification?: boolean) => void;
           <div>
             <label className="block mb-1 font-medium text-gray-700">Password</label>
             <input type="password" className="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-purple-400 transition" value={password} onChange={e => setPassword(e.target.value)} required />
-          </div>
-          <div>
-            <label className="block mb-1 font-medium text-gray-700">Role</label>
-            <select className="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-purple-400 transition" value={role} onChange={e => setRole(e.target.value)}>
-              <option value="employee">Employee</option>
-              <option value="manager">Manager</option>
-              <option value="admin">Admin</option>
-            </select>
           </div>
           {error && <div className="text-red-600 text-center">{error}</div>}
           {success && <div className="text-green-600 text-center">{success}</div>}

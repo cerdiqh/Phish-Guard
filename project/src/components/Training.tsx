@@ -203,7 +203,7 @@ const Training: React.FC = () => {
       setSelectedOption(null);
     } else {
       setView('result');
-      const finalScoreVal = score + (selectedOption === questions[quizIndex].answer ? 1 : 0);
+      const finalScoreVal = score;
       const passed = finalScoreVal >= Math.ceil(questions.length * 0.6);
       if (selectedModule) {
         const updated = { ...completedModules, [selectedModule]: passed };

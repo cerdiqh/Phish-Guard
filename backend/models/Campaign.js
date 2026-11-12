@@ -4,7 +4,6 @@ const CampaignSchema = new mongoose.Schema({
   name: String,
   description: String,
   status: { type: String, enum: ['draft', 'active', 'completed', 'paused'], default: 'draft' },
-  createdAt: { type: Date, default: Date.now },
   targetCount: Number,
   clickCount: Number,
   reportCount: Number,

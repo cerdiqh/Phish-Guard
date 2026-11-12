@@ -57,7 +57,11 @@ const CampaignManager: React.FC<CampaignManagerProps> = ({ user, campaigns, setC
       onNotify?.(`New campaign created: ${campaign.name}`);
     });
     socket.on('campaignUpdated', (campaign: any) => {
-      setCampaigns(prev => prev.map(c => (c.id === campaign._id || c.id === campaign.id) ? { ...c, ...campaign } : c));
+      const camId = campaign._id || campaign.id;
+      setCampaigns(prev => prev.map(c => {
+        const cId = (c as any)._id || c.id;
+        return cId === camId ? { ...c, ...campaign } : c;
+      }));
     });
     socket.on('emailStatus', ({ campaignId, email, status, error }: any) => {
       setCampaigns(prev => prev.map(c => {
@@ -280,7 +284,7 @@ const CampaignManager: React.FC<CampaignManagerProps> = ({ user, campaigns, setC
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {selectedCampaign.targets.map((emp, i) => {
+                  {(selectedCampaign.targets || []).map((emp, i) => {
                     const es = selectedCampaign.emailStatus?.find(e => e.email === emp.email);
                     return (
                       <tr key={i}>

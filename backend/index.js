@@ -337,9 +337,7 @@ app.post('/api/reset-password', authLimiter, async (req, res) => {
     const user = await User.findOne({ resetToken: token, resetTokenExpiry: { $gt: new Date() } });
     if (!user) return res.status(400).json({ error: 'Invalid or expired reset token' });
     user.password = await bcrypt.hash(password, 12);
-    user.resetToken = undefined;
-    user.resetTokenExpiry = undefined;
-    await user.save();
+    await User.findByIdAndUpdate(user._id, { $unset: { resetToken: '', resetTokenExpiry: '' }, $set: { password: user.password } });
     res.json({ message: 'Password reset successfully' });
   } catch {
     res.status(500).json({ error: 'Server error' });
@@ -463,7 +461,7 @@ app.get('/api/campaigns', auth(), async (req, res) => {
   res.json(campaigns);
 });
 
-app.post('/api/campaigns', auth('admin'), async (req, res) => {
+app.post('/api/campaigns', auth('admin', 'manager'), async (req, res) => {
   const { name, description, templateId, targets = [], scheduledAt } = req.body;
   if (!name) return res.status(400).json({ error: 'Campaign name required' });
   if (!templateId) return res.status(400).json({ error: 'Template required' });
