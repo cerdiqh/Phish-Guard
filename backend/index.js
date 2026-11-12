@@ -235,11 +235,12 @@ app.post('/api/register', authLimiter, async (req, res) => {
   if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
   const normalEmail = email.toLowerCase().trim();
   try {
-    // If account exists but is unverified, delete it and allow re-registration
-    const existing = await User.findOne({ email: normalEmail });
-    if (existing && !existing.emailVerified) {
-      await User.deleteOne({ _id: existing._id });
-    }
+    // Delete any unverified ghost accounts with same email or username
+    await User.deleteMany({
+      emailVerified: false,
+      verifyToken: { $exists: true },
+      $or: [{ email: normalEmail }, { username: username.trim() }],
+    });
     const hashed = await bcrypt.hash(password, 12);
     const verifyToken = crypto.randomBytes(32).toString('hex');
     const emailEnabled = !!process.env.EMAIL_USER;
@@ -296,7 +297,15 @@ app.post('/api/login', authLimiter, async (req, res) => {
     if (!user) return res.status(400).json({ error: 'Invalid credentials' });
     const ok = await bcrypt.compare(password, user.password);
     if (!ok) return res.status(400).json({ error: 'Invalid credentials' });
-    if (!user.emailVerified) return res.status(400).json({ error: 'Please verify your email before logging in. Check your inbox for the verification link.' });
+    // Only block login if emailVerified is explicitly false AND a verifyToken exists
+    // (legacy accounts created before verification feature have emailVerified: undefined — allow them in)
+    if (user.emailVerified === false && user.verifyToken) {
+      return res.status(400).json({ error: 'Please verify your email before logging in. Check your inbox for the verification link.' });
+    }
+    // Auto-fix legacy unverified accounts
+    if (!user.emailVerified) {
+      await User.updateOne({ _id: user._id }, { $set: { emailVerified: true } });
+    }
     const token = jwt.sign({ userId: user._id, role: user.role }, JWT_SECRET, { expiresIn: '1d' });
     await AuditLog.create({ userId: user._id, userEmail: user.email, action: 'login', details: `User logged in`, ip: req.ip });
     res.json({ token, user: { _id: user._id, username: user.username, email: user.email, role: user.role } });
@@ -313,15 +322,20 @@ app.post('/api/forgot-password', authLimiter, async (req, res) => {
     const user = await User.findOne({ email: email.toLowerCase().trim() });
     if (user) {
       const token = crypto.randomBytes(32).toString('hex');
-      user.resetToken = token;
-      user.resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000);
-      await user.save();
-      const link = `${FRONTEND_URL}/?reset=1&token=${token}`;
-      await sendMail({
-        to: user.email,
-        subject: 'PhishGuard password reset',
-        html: `<p>Hi ${user.username},</p><p>Click the link below to reset your password. It expires in 1 hour.</p><p><a href="${link}">${link}</a></p><p>If you did not request this, ignore this email.</p>`,
+      await User.updateOne({ _id: user._id }, {
+        $set: { resetToken: token, resetTokenExpiry: new Date(Date.now() + 60 * 60 * 1000) }
       });
+      const link = `${FRONTEND_URL}/?reset=1&token=${token}`;
+      try {
+        await sendMail({
+          to: user.email,
+          subject: 'PhishGuard password reset',
+          html: `<p>Hi ${user.username},</p><p>Click the link below to reset your password. It expires in 1 hour.</p><p><a href="${link}" style="background:#2563eb;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;display:inline-block">Reset Password</a></p><p>Or copy this link: ${link}</p><p>If you did not request this, ignore this email.</p>`,
+        });
+      } catch (mailErr) {
+        console.error('Password reset email failed:', mailErr.message);
+        return res.status(500).json({ error: 'Failed to send reset email. Please check your email address or try again later.' });
+      }
     }
     res.json({ message: 'If that email is registered, a reset link has been sent.' });
   } catch {
