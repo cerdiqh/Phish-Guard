@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Book, Award, CheckCircle, Clock, Users, ChevronRight, RotateCcw } from 'lucide-react';
+import { Play, Book, Award, CheckCircle, Clock, Users, ChevronRight, RotateCcw, Lock, BookOpen, Shield, Smartphone, AlertCircle } from 'lucide-react';
 import axios from 'axios';
 
 const API_URL = () => (import.meta as any).env?.VITE_API_URL || 'http://localhost:5000';
@@ -223,108 +223,138 @@ const Training: React.FC = () => {
   const finalScore = view === 'result' ? score : 0;
   const passed = finalScore >= Math.ceil(questions.length * 0.6);
 
+  const moduleIcons = [Shield, BookOpen, Smartphone, AlertCircle];
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Security Awareness Training</h1>
-        <p className="text-gray-600 dark:text-gray-400">Interactive training modules to improve your security awareness</p>
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Security Awareness Training</h1>
+          <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">Build your defences against phishing and social engineering attacks</p>
+        </div>
+        <div className="flex items-center gap-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-2 shadow-sm">
+          <Award className="h-5 w-5 text-yellow-500" />
+          <span className="text-sm font-semibold text-gray-900 dark:text-white">{doneCount}/{totalModules}</span>
+          <span className="text-sm text-gray-500 dark:text-gray-400">modules completed</span>
+        </div>
       </div>
 
-      {/* Progress Overview */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Your Progress</h2>
-          <div className="flex items-center">
-            <Award className="h-5 w-5 text-yellow-500 mr-2" />
-            <span className="text-sm font-medium text-gray-900 dark:text-white">{doneCount} of {totalModules} completed</span>
-          </div>
+      {/* Progress bar */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm">
+        <div className="flex justify-between text-sm mb-3">
+          <span className="font-medium text-gray-700 dark:text-gray-300">Overall Progress</span>
+          <span className="font-bold text-blue-600 dark:text-blue-400">{completionRate}%</span>
         </div>
-        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 mb-4">
-          <div className="bg-blue-600 h-3 rounded-full transition-all duration-500" style={{ width: `${completionRate}%` }} />
+        <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
+          <div
+            className="h-3 rounded-full bg-gradient-to-r from-blue-500 to-blue-600 transition-all duration-700"
+            style={{ width: `${completionRate}%` }}
+          />
         </div>
-        <div className="grid grid-cols-3 gap-4">
-          <div className="text-center p-3 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
-            <Book className="h-6 w-6 text-blue-600 mx-auto mb-2" />
-            <p className="text-sm text-gray-600 dark:text-gray-400">Available</p>
-            <p className="text-xl font-bold text-blue-900 dark:text-blue-300">{totalModules}</p>
-          </div>
-          <div className="text-center p-3 bg-green-50 dark:bg-green-900/30 rounded-lg">
-            <CheckCircle className="h-6 w-6 text-green-600 mx-auto mb-2" />
-            <p className="text-sm text-gray-600 dark:text-gray-400">Completed</p>
-            <p className="text-xl font-bold text-green-900 dark:text-green-300">{doneCount}</p>
-          </div>
-          <div className="text-center p-3 bg-purple-50 dark:bg-purple-900/30 rounded-lg">
-            <Users className="h-6 w-6 text-purple-600 mx-auto mb-2" />
-            <p className="text-sm text-gray-600 dark:text-gray-400">Rate</p>
-            <p className="text-xl font-bold text-purple-900 dark:text-purple-300">{completionRate}%</p>
-          </div>
+        <div className="flex justify-between mt-3 text-xs text-gray-500 dark:text-gray-400">
+          <span>0 modules</span>
+          <span>{totalModules} modules</span>
         </div>
       </div>
 
       {!selectedModule ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {trainingModules.map(mod => (
-            <div key={mod.id} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 hover:shadow-md transition-shadow">
-              <div className="flex items-start justify-between mb-4">
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">{mod.title}</h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">{mod.description}</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          {trainingModules.map((mod, idx) => {
+            const Icon = moduleIcons[idx] || Book;
+            const done = completedModules[mod.id];
+            return (
+              <div
+                key={mod.id}
+                className={`bg-white dark:bg-gray-800 rounded-xl border shadow-sm transition-all hover:shadow-md ${done ? 'border-green-200 dark:border-green-800' : 'border-gray-200 dark:border-gray-700'}`}
+              >
+                <div className="p-5">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className={`p-2.5 rounded-xl ${done ? 'bg-green-100 dark:bg-green-900/40' : 'bg-blue-100 dark:bg-blue-900/40'}`}>
+                      <Icon className={`h-6 w-6 ${done ? 'text-green-600 dark:text-green-400' : 'text-blue-600 dark:text-blue-400'}`} />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${getDifficultyColor(mod.difficulty)}`}>{mod.difficulty}</span>
+                      {done && (
+                        <span className="flex items-center gap-1 px-2.5 py-1 bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 rounded-full text-xs font-semibold">
+                          <CheckCircle className="h-3 w-3" /> Done
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <h3 className="text-base font-bold text-gray-900 dark:text-white mb-1">{mod.title}</h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">{mod.description}</p>
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {mod.topics.map((t, i) => (
+                      <span key={i} className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-1 rounded-lg">{t}</span>
+                    ))}
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                      <Clock className="h-3.5 w-3.5" /> {mod.duration}
+                    </div>
+                    <button
+                      onClick={() => startModule(mod.id)}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                        done
+                          ? 'bg-green-100 hover:bg-green-200 dark:bg-green-900/40 dark:hover:bg-green-900/60 text-green-700 dark:text-green-300'
+                          : 'bg-blue-600 hover:bg-blue-700 text-white'
+                      }`}
+                    >
+                      <Play className="h-4 w-4" />
+                      {done ? 'Review' : 'Start'}
+                    </button>
+                  </div>
                 </div>
-                {completedModules[mod.id] && <CheckCircle className="h-6 w-6 text-green-500 flex-shrink-0" />}
               </div>
-              <div className="flex items-center space-x-4 mb-4">
-                <div className="flex items-center">
-                  <Clock className="h-4 w-4 text-gray-500 mr-1" />
-                  <span className="text-sm text-gray-600 dark:text-gray-400">{mod.duration}</span>
-                </div>
-                <span className={`px-2 py-1 rounded-full text-xs font-medium ${getDifficultyColor(mod.difficulty)}`}>{mod.difficulty}</span>
-              </div>
-              <div className="mb-4">
-                <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Topics:</p>
-                <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
-                  {mod.topics.slice(0, 2).map((t, i) => (
-                    <li key={i} className="flex items-center"><div className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-2" />{t}</li>
-                  ))}
-                  {mod.topics.length > 2 && <li className="text-gray-500">+{mod.topics.length - 2} more</li>}
-                </ul>
-              </div>
-              <button onClick={() => startModule(mod.id)} className={`w-full px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center ${completedModules[mod.id] ? 'bg-green-100 hover:bg-green-200 text-green-700' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}>
-                <Play className="h-4 w-4 mr-2" />
-                {completedModules[mod.id] ? 'Review Module' : 'Start Module'}
-              </button>
-            </div>
-          ))}
+            );
+          })}
         </div>
       ) : (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-          <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{module?.title}</h2>
-              <p className="text-gray-600 dark:text-gray-400 mt-1">{module?.description}</p>
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+          {/* Module header */}
+          <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-6 text-white">
+            <div className="flex justify-between items-start">
+              <div>
+                <p className="text-blue-200 text-sm mb-1">{module?.difficulty} · {module?.duration}</p>
+                <h2 className="text-xl font-bold">{module?.title}</h2>
+                <p className="text-blue-200 text-sm mt-1">{module?.description}</p>
+              </div>
+              <button onClick={goBack} className="text-blue-200 hover:text-white transition-colors text-sm">← Back</button>
             </div>
-            <button onClick={goBack} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 text-sm">← Back</button>
+            {/* Step indicator */}
+            <div className="flex items-center gap-2 mt-5">
+              {(['outline', 'lesson', 'quiz', 'result'] as const).map((step, i) => (
+                <React.Fragment key={step}>
+                  <div className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1 rounded-full transition-all ${view === step ? 'bg-white text-blue-700' : 'bg-blue-500/40 text-blue-200'}`}>
+                    <span>{i + 1}</span>
+                    <span className="capitalize">{step}</span>
+                  </div>
+                  {i < 3 && <div className="flex-1 h-px bg-blue-500/40" />}
+                </React.Fragment>
+              ))}
+            </div>
           </div>
 
           <div className="p-6 max-w-3xl mx-auto">
-
             {/* OUTLINE */}
             {view === 'outline' && content && (
               <div>
-                <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Module Outline</h3>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">What you'll learn</h3>
                 <div className="space-y-3 mb-8">
                   {content.topics.map((t, i) => (
-                    <div key={i} className="flex items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                      <div className="w-7 h-7 bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 rounded-full flex items-center justify-center text-sm font-medium mr-3">{i + 1}</div>
-                      <span className="text-gray-700 dark:text-gray-300">{t.title}</span>
+                    <div key={i} className="flex items-center gap-3 p-3.5 bg-gray-50 dark:bg-gray-700 rounded-xl border border-gray-200 dark:border-gray-600">
+                      <div className="w-7 h-7 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0">{i + 1}</div>
+                      <span className="text-gray-700 dark:text-gray-300 font-medium">{t.title}</span>
                     </div>
                   ))}
                 </div>
-                <div className="flex space-x-4 justify-center">
-                  <button onClick={() => { setView('lesson'); setTopicIndex(0); }} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors flex items-center">
-                    <Play className="h-4 w-4 mr-2" /> Start Training
+                <div className="flex gap-3 justify-center">
+                  <button onClick={() => { setView('lesson'); setTopicIndex(0); }} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-semibold transition-colors flex items-center gap-2">
+                    <Play className="h-4 w-4" /> Start Lesson
                   </button>
-                  <button onClick={() => { setView('quiz'); setQuizIndex(0); setScore(0); setAnswered(false); setSelectedOption(null); }} className="bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 px-6 py-3 rounded-lg font-medium transition-colors">
-                    Take Quiz Only
+                  <button onClick={() => { setView('quiz'); setQuizIndex(0); setScore(0); setAnswered(false); setSelectedOption(null); }} className="bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 px-6 py-3 rounded-xl font-semibold transition-colors">
+                    Quiz Only
                   </button>
                 </div>
               </div>
@@ -334,25 +364,29 @@ const Training: React.FC = () => {
             {view === 'lesson' && content && (
               <div>
                 <div className="flex items-center justify-between mb-6">
-                  <span className="text-sm text-gray-500 dark:text-gray-400">Topic {topicIndex + 1} of {content.topics.length}</span>
-                  <div className="flex space-x-1">
+                  <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Topic {topicIndex + 1} of {content.topics.length}</span>
+                  <div className="flex gap-1.5">
                     {content.topics.map((_, i) => (
-                      <div key={i} className={`h-2 w-8 rounded-full ${i <= topicIndex ? 'bg-blue-600' : 'bg-gray-200 dark:bg-gray-600'}`} />
+                      <div key={i} className={`h-2 rounded-full transition-all duration-300 ${i <= topicIndex ? 'bg-blue-600 w-8' : 'bg-gray-200 dark:bg-gray-600 w-4'}`} />
                     ))}
                   </div>
                 </div>
-                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">{content.topics[topicIndex].title}</h3>
-                <p className="text-gray-700 dark:text-gray-300 leading-relaxed text-base mb-8">{content.topics[topicIndex].body}</p>
+                <div className="mb-8">
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">{content.topics[topicIndex].title}</h3>
+                  <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-xl p-5">
+                    <p className="text-gray-700 dark:text-gray-300 leading-relaxed">{content.topics[topicIndex].body}</p>
+                  </div>
+                </div>
                 <div className="flex justify-between">
-                  <button onClick={() => topicIndex > 0 ? setTopicIndex(i => i - 1) : setView('outline')} className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
+                  <button onClick={() => topicIndex > 0 ? setTopicIndex(i => i - 1) : setView('outline')} className="px-4 py-2.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors font-medium">
                     ← Back
                   </button>
                   {topicIndex + 1 < content.topics.length ? (
-                    <button onClick={() => setTopicIndex(i => i + 1)} className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center">
-                      Next <ChevronRight className="h-4 w-4 ml-1" />
+                    <button onClick={() => setTopicIndex(i => i + 1)} className="px-6 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-semibold flex items-center gap-1">
+                      Next <ChevronRight className="h-4 w-4" />
                     </button>
                   ) : (
-                    <button onClick={() => { setView('quiz'); setQuizIndex(0); setScore(0); setAnswered(false); setSelectedOption(null); }} className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+                    <button onClick={() => { setView('quiz'); setQuizIndex(0); setScore(0); setAnswered(false); setSelectedOption(null); }} className="px-6 py-2.5 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors font-semibold">
                       Take Quiz →
                     </button>
                   )}
@@ -363,33 +397,37 @@ const Training: React.FC = () => {
             {/* QUIZ */}
             {view === 'quiz' && questions.length > 0 && (
               <div>
-                <div className="flex items-center justify-between mb-6">
-                  <span className="text-sm text-gray-500 dark:text-gray-400">Question {quizIndex + 1} of {questions.length}</span>
-                  <span className="text-sm font-medium text-blue-600 dark:text-blue-400">Score: {score}/{questions.length}</span>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Question {quizIndex + 1} of {questions.length}</span>
+                  <span className="text-sm font-bold text-blue-600 dark:text-blue-400">{score} correct</span>
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">{questions[quizIndex].question}</h3>
+                <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-1.5 mb-6">
+                  <div className="h-1.5 bg-blue-600 rounded-full transition-all" style={{ width: `${((quizIndex) / questions.length) * 100}%` }} />
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-5">{questions[quizIndex].question}</h3>
                 <div className="space-y-3 mb-6">
                   {questions[quizIndex].options.map((opt, i) => {
-                    let cls = 'w-full text-left p-4 rounded-lg border-2 transition-colors ';
+                    let cls = 'w-full text-left p-4 rounded-xl border-2 transition-all font-medium ';
                     if (!answered) {
                       cls += 'border-gray-200 dark:border-gray-600 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 cursor-pointer text-gray-700 dark:text-gray-300';
                     } else if (i === questions[quizIndex].answer) {
-                      cls += 'border-green-500 bg-green-50 dark:bg-green-900/30 text-green-800 dark:text-green-300';
+                      cls += 'border-green-500 bg-green-50 dark:bg-green-900/30 text-green-800 dark:text-green-200';
                     } else if (i === selectedOption) {
-                      cls += 'border-red-500 bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-300';
+                      cls += 'border-red-500 bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-200';
                     } else {
-                      cls += 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-500';
+                      cls += 'border-gray-100 dark:border-gray-700 text-gray-400 dark:text-gray-500';
                     }
                     return (
                       <button key={i} className={cls} onClick={() => handleAnswer(i)} disabled={answered}>
-                        <span className="font-medium mr-2">{String.fromCharCode(65 + i)}.</span> {opt}
+                        <span className="inline-block w-7 h-7 rounded-full bg-current/10 text-center leading-7 text-xs mr-3 opacity-70">{String.fromCharCode(65 + i)}</span>
+                        {opt}
                       </button>
                     );
                   })}
                 </div>
                 {answered && (
-                  <div className={`p-4 rounded-lg mb-6 ${selectedOption === questions[quizIndex].answer ? 'bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-700' : 'bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700'}`}>
-                    <p className={`font-semibold mb-1 ${selectedOption === questions[quizIndex].answer ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'}`}>
+                  <div className={`p-4 rounded-xl mb-6 border ${selectedOption === questions[quizIndex].answer ? 'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-700' : 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-700'}`}>
+                    <p className={`font-bold mb-1 ${selectedOption === questions[quizIndex].answer ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'}`}>
                       {selectedOption === questions[quizIndex].answer ? '✓ Correct!' : '✗ Incorrect'}
                     </p>
                     <p className="text-sm text-gray-700 dark:text-gray-300">{questions[quizIndex].explanation}</p>
@@ -397,7 +435,7 @@ const Training: React.FC = () => {
                 )}
                 {answered && (
                   <div className="flex justify-end">
-                    <button onClick={nextQuestion} className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                    <button onClick={nextQuestion} className="px-6 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-semibold">
                       {quizIndex + 1 < questions.length ? 'Next Question →' : 'See Results →'}
                     </button>
                   </div>
@@ -408,52 +446,64 @@ const Training: React.FC = () => {
             {/* RESULT */}
             {view === 'result' && (
               <div className="text-center py-8">
-                <div className="text-6xl mb-4">{passed ? '🎉' : '📚'}</div>
-                <h3 className={`text-2xl font-bold mb-2 ${passed ? 'text-green-600' : 'text-red-600'}`}>
-                  {passed ? 'Well Done!' : 'Keep Practising'}
+                {/* Circular score indicator */}
+                <div className="relative inline-flex items-center justify-center mb-6">
+                  <svg className="w-32 h-32 -rotate-90" viewBox="0 0 120 120">
+                    <circle cx="60" cy="60" r="50" fill="none" stroke="currentColor" strokeWidth="10" className="text-gray-200 dark:text-gray-700" />
+                    <circle
+                      cx="60" cy="60" r="50" fill="none" strokeWidth="10"
+                      strokeLinecap="round"
+                      stroke={passed ? '#16a34a' : '#dc2626'}
+                      strokeDasharray={`${2 * Math.PI * 50}`}
+                      strokeDashoffset={`${2 * Math.PI * 50 * (1 - score / questions.length)}`}
+                      className="transition-all duration-700"
+                    />
+                  </svg>
+                  <div className="absolute text-center">
+                    <p className="text-3xl font-bold text-gray-900 dark:text-white">{Math.round((score / questions.length) * 100)}%</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{score}/{questions.length}</p>
+                  </div>
+                </div>
+                <h3 className={`text-2xl font-bold mb-2 ${passed ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                  {passed ? 'Module Passed! 🎉' : 'Keep Practising 📚'}
                 </h3>
-                <p className="text-gray-600 dark:text-gray-400 mb-2">You scored <strong>{score} out of {questions.length}</strong></p>
-                <p className={`text-sm font-medium mb-8 ${passed ? 'text-green-600' : 'text-red-600'}`}>
-                  {passed ? 'Module completed! You passed.' : `You need ${Math.ceil(questions.length * 0.6)} correct answers to pass.`}
+                <p className={`text-sm font-medium mb-8 ${passed ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'}`}>
+                  {passed ? 'Great work — you passed this module.' : `You need ${Math.ceil(questions.length * 0.6)} correct to pass. Try again!`}
                 </p>
-                <div className="flex justify-center space-x-4">
+                <div className="flex justify-center flex-wrap gap-3">
                   {!passed && (
-                    <button onClick={() => { setView('quiz'); setQuizIndex(0); setScore(0); setAnswered(false); setSelectedOption(null); }} className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center">
-                      <RotateCcw className="h-4 w-4 mr-2" /> Retry Quiz
+                    <button onClick={() => { setView('quiz'); setQuizIndex(0); setScore(0); setAnswered(false); setSelectedOption(null); }} className="px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-semibold flex items-center gap-2">
+                      <RotateCcw className="h-4 w-4" /> Retry Quiz
                     </button>
                   )}
-                  <button onClick={() => { setView('lesson'); setTopicIndex(0); }} className="px-6 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
+                  <button onClick={() => { setView('lesson'); setTopicIndex(0); }} className="px-5 py-2.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors font-semibold">
                     Review Lesson
                   </button>
-                  <button onClick={goBack} className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
-                    Back to Modules
+                  <button onClick={goBack} className="px-5 py-2.5 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors font-semibold">
+                    All Modules
                   </button>
                 </div>
               </div>
             )}
-
           </div>
         </div>
       )}
 
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Additional Resources</h3>
+      {/* Resources */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm">
+        <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Quick Reference</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
-            <Book className="h-8 w-8 text-blue-600 mb-3" />
-            <h4 className="font-medium text-gray-900 dark:text-white mb-1">Security Guidelines</h4>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Company security policies and best practices</p>
-          </div>
-          <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
-            <Users className="h-8 w-8 text-green-600 mb-3" />
-            <h4 className="font-medium text-gray-900 dark:text-white mb-1">Report Incidents</h4>
-            <p className="text-sm text-gray-600 dark:text-gray-400">How to report suspicious emails and activities</p>
-          </div>
-          <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
-            <Award className="h-8 w-8 text-purple-600 mb-3" />
-            <h4 className="font-medium text-gray-900 dark:text-white mb-1">Certifications</h4>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Earn badges for completed training modules</p>
-          </div>
+          {[
+            { icon: Book, color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-900/20', title: 'Security Guidelines', desc: 'Company security policies and best practices' },
+            { icon: Users, color: 'text-green-600', bg: 'bg-green-50 dark:bg-green-900/20', title: 'Report Incidents', desc: 'How to report suspicious emails and activities' },
+            { icon: Award, color: 'text-purple-600', bg: 'bg-purple-50 dark:bg-purple-900/20', title: 'Certifications', desc: 'Earn badges for completed training modules' },
+          ].map(({ icon: Icon, color, bg, title, desc }) => (
+            <div key={title} className={`p-4 ${bg} rounded-xl border border-gray-200 dark:border-gray-700`}>
+              <Icon className={`h-6 w-6 ${color} mb-2`} />
+              <h4 className="font-semibold text-gray-900 dark:text-white text-sm mb-1">{title}</h4>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{desc}</p>
+            </div>
+          ))}
         </div>
       </div>
     </div>
