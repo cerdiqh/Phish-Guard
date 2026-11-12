@@ -142,8 +142,76 @@ app.get('/track/click/:campaignId/:tid', async (req, res) => {
   res.redirect(`${API_BASE_URL}/phished/${req.params.campaignId}/${req.params.tid}`);
 });
 
-app.get('/phished/:campaignId/:tid', (req, res) => {
-  res.send(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Security Awareness</title><style>*{box-sizing:border-box}body{font-family:sans-serif;background:#1e3a5f;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}div{background:#fff;border-radius:12px;padding:40px;max-width:480px;text-align:center;box-shadow:0 20px 40px rgba(0,0,0,.4)}.icon{font-size:60px;margin-bottom:16px}h1{color:#d32f2f;font-size:24px;margin:0 0 12px}p{color:#444;line-height:1.6}strong{color:#1e3a5f}.badge{display:inline-block;background:#e8f5e9;color:#2e7d32;border-radius:20px;padding:4px 14px;font-size:13px;margin-top:20px;font-weight:600}</style></head><body><div><div class="icon">🎣</div><h1>You've Been Phished!</h1><p>This was a <strong>security awareness test</strong> from your organisation's IT team. You clicked a link in a simulated phishing email.</p><p style="margin-top:16px">Don't worry — no real data was collected. This test helps identify areas for improvement.</p><p style="margin-top:16px"><strong>What to do next:</strong><br>Be cautious of unexpected emails, check sender addresses, and report suspicious messages to IT.</p><div class="badge">✓ PhishGuard Simulation</div></div></body></html>`);
+app.get('/phished/:campaignId/:tid', async (req, res) => {
+  let indicators = ['Urgency or pressure tactics', 'Suspicious sender domain', 'Generic greeting (Dear Employee)', 'Unexpected link or attachment', 'Request for credentials or personal info'];
+  try {
+    const campaign = await Campaign.findById(req.params.campaignId).lean();
+    if (campaign && campaign.template && Array.isArray(campaign.template.indicators) && campaign.template.indicators.length > 0) {
+      indicators = campaign.template.indicators;
+    }
+  } catch {}
+  const indicatorItems = indicators.map(i => `<li>${i}</li>`).join('');
+  res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Security Awareness — PhishGuard</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+  .card{background:#fff;border-radius:16px;max-width:560px;width:100%;box-shadow:0 24px 64px rgba(0,0,0,.5);overflow:hidden}
+  .header{background:linear-gradient(135deg,#c62828,#b71c1c);padding:32px;text-align:center;color:#fff}
+  .icon{font-size:56px;margin-bottom:12px}
+  .header h1{font-size:28px;font-weight:700;letter-spacing:-0.5px}
+  .header p{margin-top:8px;opacity:.9;font-size:15px}
+  .body{padding:28px 32px}
+  .badge{display:inline-flex;align-items:center;gap:6px;background:#fce4ec;color:#c62828;border-radius:20px;padding:6px 14px;font-size:13px;font-weight:600;margin-bottom:20px}
+  .section{margin-bottom:24px}
+  .section h2{font-size:15px;font-weight:700;color:#1a1a2e;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px}
+  .indicators{background:#fff8e1;border:1px solid #ffe082;border-radius:10px;padding:16px}
+  .indicators ul{padding-left:20px;color:#5d4037;font-size:14px;line-height:1.9}
+  .info{background:#e3f2fd;border:1px solid #90caf9;border-radius:10px;padding:16px;font-size:14px;color:#0d47a1;line-height:1.6}
+  .cta{text-align:center;margin-top:28px}
+  .cta a{display:inline-block;background:linear-gradient(135deg,#1565c0,#0d47a1);color:#fff;text-decoration:none;padding:14px 32px;border-radius:10px;font-weight:600;font-size:15px;transition:opacity .2s}
+  .cta a:hover{opacity:.85}
+  .footer{text-align:center;padding:16px 32px;border-top:1px solid #f0f0f0;font-size:12px;color:#9e9e9e}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="header">
+    <div class="icon">🎣</div>
+    <h1>You've Been Phished!</h1>
+    <p>This was a controlled security awareness simulation</p>
+  </div>
+  <div class="body">
+    <div style="text-align:center"><span class="badge">⚠️ Security Awareness Test</span></div>
+    <div class="section">
+      <div class="info">
+        <strong>Don't panic</strong> — no real data was collected and your account is safe. This test was conducted by your organisation's security team to help identify areas for improvement.
+      </div>
+    </div>
+    <div class="section">
+      <h2>Clues you may have missed</h2>
+      <div class="indicators">
+        <ul>${indicatorItems}</ul>
+      </div>
+    </div>
+    <div class="section">
+      <h2>What to do next time</h2>
+      <div class="info">
+        Before clicking any link: verify the sender's email address, hover over links to preview the URL, check for urgency or pressure tactics, and report suspicious emails to IT security.
+      </div>
+    </div>
+    <div class="cta">
+      <a href="${FRONTEND_URL}">Take Security Training →</a>
+    </div>
+  </div>
+  <div class="footer">PhishGuard Security Awareness Platform · This simulation is confidential</div>
+</div>
+</body>
+</html>`);
 });
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
@@ -377,6 +445,28 @@ app.get('/api/reports', auth(), async (req, res) => {
     return res.json(campaigns);
   }
   res.json([]);
+});
+
+// ─── Export ───────────────────────────────────────────────────────────────────
+app.get('/api/export/campaigns', auth(), async (req, res) => {
+  if (!['admin', 'manager'].includes(req.user.role)) return res.status(403).json({ error: 'Forbidden' });
+  const campaigns = await Campaign.find().sort({ createdAt: -1 }).lean();
+  const data = campaigns.map(c => {
+    const sent = (c.emailStatus || []).length;
+    const opened = (c.emailStatus || []).filter(e => e.openCount > 0).length;
+    const clicked = (c.emailStatus || []).filter(e => e.clickCount > 0).length;
+    return {
+      name: c.name,
+      status: c.status,
+      sent,
+      opened,
+      clicked,
+      openRate: sent ? ((opened / sent) * 100).toFixed(1) + '%' : '0%',
+      clickRate: sent ? ((clicked / sent) * 100).toFixed(1) + '%' : '0%',
+      createdAt: c.createdAt ? new Date(c.createdAt).toISOString().split('T')[0] : '',
+    };
+  });
+  res.json(data);
 });
 
 // ─── Phishing analyzer ───────────────────────────────────────────────────────

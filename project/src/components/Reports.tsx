@@ -1,7 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
-import { Download, Filter, Users, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
-import { mockEmployees, mockCampaigns } from '../data/mockData';
+import { Download, FileText, Users, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
+import { mockEmployees } from '../data/mockData';
+
+const API_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:5000';
+
+interface CampaignRow {
+  name: string;
+  status: string;
+  sent: number;
+  opened: number;
+  clicked: number;
+  openRate: string;
+  clickRate: string;
+  createdAt: string;
+}
 
 interface ReportsProps {
   user?: any;
@@ -9,6 +22,16 @@ interface ReportsProps {
 
 const Reports: React.FC<ReportsProps> = ({ user }) => {
   const [selectedTimeframe, setSelectedTimeframe] = useState('30d');
+  const [campaigns, setCampaigns] = useState<CampaignRow[]>([]);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token || !['admin', 'manager'].includes(user?.role)) return;
+    fetch(`${API_URL}/api/export/campaigns`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : [])
+      .then(setCampaigns)
+      .catch(() => {});
+  }, [user]);
 
   const departmentData = mockEmployees.reduce((acc, emp) => {
     if (!acc[emp.department]) {
@@ -73,28 +96,33 @@ const Reports: React.FC<ReportsProps> = ({ user }) => {
 
   const recommendations = getRecommendations();
 
-  // CSV export helper
   function exportEmployeesToCSV() {
     const headers = ['Name', 'Email', 'Department', 'Risk Level', 'Clicked', 'Reported', 'Last Activity'];
     const rows = mockEmployees.map(emp => [
-      emp.name,
-      emp.email,
-      emp.department,
-      emp.riskLevel,
-      emp.clicked ? 'Yes' : 'No',
-      emp.reported ? 'Yes' : 'No',
-      emp.lastActivity
+      emp.name, emp.email, emp.department, emp.riskLevel,
+      emp.clicked ? 'Yes' : 'No', emp.reported ? 'Yes' : 'No', emp.lastActivity
     ]);
-    const csvContent = [headers, ...rows].map(r => r.map(field => `"${field}"`).join(',')).join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv' });
+    downloadCSV([headers, ...rows], 'employee_report.csv');
+  }
+
+  function exportCampaignsToCSV() {
+    const headers = ['Campaign Name', 'Status', 'Sent', 'Opened', 'Clicked', 'Open Rate', 'Click Rate', 'Created'];
+    const rows = campaigns.map(c => [c.name, c.status, String(c.sent), String(c.opened), String(c.clicked), c.openRate, c.clickRate, c.createdAt]);
+    downloadCSV([headers, ...rows], 'campaigns_report.csv');
+  }
+
+  function downloadCSV(data: string[][], filename: string) {
+    const csv = data.map(r => r.map(f => `"${String(f).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url;
-    a.download = 'employee_report.csv';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a); URL.revokeObjectURL(url);
+  }
+
+  function exportToPDF() {
+    window.print();
   }
 
   if (!['admin', 'manager'].includes(user?.role)) {
@@ -114,7 +142,7 @@ const Reports: React.FC<ReportsProps> = ({ user }) => {
           <h1 className="text-2xl font-bold text-gray-900">Security Awareness Reports</h1>
           <p className="text-gray-600">Detailed analytics and insights from your phishing campaigns</p>
         </div>
-        <div className="flex space-x-3">
+        <div className="flex space-x-2 flex-wrap gap-2 no-print">
           <select
             value={selectedTimeframe}
             onChange={(e) => setSelectedTimeframe(e.target.value)}
@@ -124,9 +152,19 @@ const Reports: React.FC<ReportsProps> = ({ user }) => {
             <option value="30d">Last 30 days</option>
             <option value="90d">Last 90 days</option>
           </select>
-          <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center transition-colors" onClick={exportEmployeesToCSV}>
-            <Download className="h-4 w-4 mr-2" />
-            Export Report
+          <button className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg flex items-center text-sm transition-colors" onClick={exportEmployeesToCSV}>
+            <Download className="h-4 w-4 mr-1" />
+            Employees CSV
+          </button>
+          {campaigns.length > 0 && (
+            <button className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg flex items-center text-sm transition-colors" onClick={exportCampaignsToCSV}>
+              <Download className="h-4 w-4 mr-1" />
+              Campaigns CSV
+            </button>
+          )}
+          <button className="bg-gray-700 hover:bg-gray-800 text-white px-3 py-2 rounded-lg flex items-center text-sm transition-colors" onClick={exportToPDF}>
+            <FileText className="h-4 w-4 mr-1" />
+            Export PDF
           </button>
         </div>
       </div>
@@ -290,6 +328,42 @@ const Reports: React.FC<ReportsProps> = ({ user }) => {
         </div>
       </div>
 
+      {/* Campaigns Table */}
+      {campaigns.length > 0 && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h3 className="text-lg font-semibold text-gray-900">Campaign Summary</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  {['Campaign', 'Status', 'Sent', 'Opened', 'Clicked', 'Open Rate', 'Click Rate', 'Date'].map(h => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {campaigns.map((c, i) => (
+                  <tr key={i} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 text-sm font-medium text-gray-900">{c.name}</td>
+                    <td className="px-4 py-3 text-sm">
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${c.status === 'active' ? 'bg-green-100 text-green-800' : c.status === 'completed' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-700'}`}>{c.status}</span>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{c.sent}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{c.opened}</td>
+                    <td className="px-4 py-3 text-sm text-red-700 font-medium">{c.clicked}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{c.openRate}</td>
+                    <td className="px-4 py-3 text-sm text-red-700">{c.clickRate}</td>
+                    <td className="px-4 py-3 text-sm text-gray-500">{c.createdAt}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {/* Recommendations */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Improvement Recommendations</h3>
@@ -343,3 +417,11 @@ const Reports: React.FC<ReportsProps> = ({ user }) => {
 };
 
 export default Reports;
+
+// Print CSS injected globally for PDF export
+if (typeof document !== 'undefined' && !document.getElementById('reports-print-style')) {
+  const style = document.createElement('style');
+  style.id = 'reports-print-style';
+  style.textContent = `@media print { .no-print { display: none !important; } body { background: white; } }`;
+  document.head.appendChild(style);
+}
