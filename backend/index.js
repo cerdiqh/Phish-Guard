@@ -7,6 +7,9 @@ require('dotenv').config();
 const Campaign = require('./models/Campaign');
 const User = require('./models/User');
 const Template = require('./models/Template');
+const TargetGroup = require('./models/TargetGroup');
+const TrainingCompletion = require('./models/TrainingCompletion');
+const AuditLog = require('./models/AuditLog');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const auth = require('./middleware/auth');
@@ -63,6 +66,15 @@ const transporter = nodemailer.createTransport({
 async function sendMail({ to, subject, html }) {
   if (!process.env.EMAIL_USER) return;
   return transporter.sendMail({ from: process.env.EMAIL_FROM || process.env.EMAIL_USER, to, subject, html });
+}
+
+// ─── Audit helper ─────────────────────────────────────────────────────────────
+async function logAudit(req, action, details) {
+  try {
+    const userId = req.user?.userId;
+    const userEmail = req.user?.email || (userId ? (await User.findById(userId).select('email').lean())?.email : null);
+    await AuditLog.create({ userId, userEmail, action, details, ip: req.ip });
+  } catch {}
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -225,6 +237,7 @@ app.post('/api/register', authLimiter, async (req, res) => {
     const hashed = await bcrypt.hash(password, 12);
     const user = new User({ username: username.trim(), email: email.toLowerCase().trim(), password: hashed, role: 'employee' });
     await user.save();
+    await AuditLog.create({ userEmail: email.toLowerCase().trim(), action: 'register', details: `New user registered: ${username}`, ip: req.ip });
     res.status(201).json({ message: 'User registered' });
   } catch (err) {
     if (err.code === 11000) return res.status(400).json({ error: 'Username or email already in use' });
@@ -241,6 +254,7 @@ app.post('/api/login', authLimiter, async (req, res) => {
     const ok = await bcrypt.compare(password, user.password);
     if (!ok) return res.status(400).json({ error: 'Invalid credentials' });
     const token = jwt.sign({ userId: user._id, role: user.role }, JWT_SECRET, { expiresIn: '1d' });
+    await AuditLog.create({ userId: user._id, userEmail: user.email, action: 'login', details: `User logged in`, ip: req.ip });
     res.json({ token, user: { _id: user._id, username: user.username, email: user.email, role: user.role } });
   } catch {
     res.status(500).json({ error: 'Server error' });
@@ -337,6 +351,7 @@ app.patch('/api/users/:id/role', auth('admin'), async (req, res) => {
   if (!['admin', 'manager', 'employee'].includes(role)) return res.status(400).json({ error: 'Invalid role' });
   const user = await User.findByIdAndUpdate(req.params.id, { role }, { new: true }).select('-password');
   if (!user) return res.status(404).json({ error: 'User not found' });
+  await logAudit(req, 'role_change', `Changed ${user.email} role to ${role}`);
   res.json(user);
 });
 
@@ -344,6 +359,7 @@ app.delete('/api/users/:id', auth('admin'), async (req, res) => {
   if (req.params.id === req.user.userId.toString()) return res.status(400).json({ error: 'Cannot delete your own account' });
   const user = await User.findByIdAndDelete(req.params.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
+  await logAudit(req, 'user_delete', `Deleted user: ${user.email}`);
   res.json({ message: 'User deleted' });
 });
 
@@ -358,6 +374,7 @@ app.post('/api/templates', auth(), async (req, res) => {
   try {
     const template = new Template({ ...req.body, createdBy: req.user.userId });
     await template.save();
+    await logAudit(req, 'template_create', `Created template: ${template.name}`);
     res.status(201).json(template);
   } catch (err) {
     res.status(400).json({ error: err.message || 'Failed to create template' });
@@ -375,6 +392,7 @@ app.delete('/api/templates/:id', auth(), async (req, res) => {
   if (!['admin', 'manager'].includes(req.user.role)) return res.status(403).json({ error: 'Forbidden' });
   const template = await Template.findByIdAndDelete(req.params.id);
   if (!template) return res.status(404).json({ error: 'Not found' });
+  await logAudit(req, 'template_delete', `Deleted template: ${template.name}`);
   res.json({ message: 'Deleted' });
 });
 
@@ -425,6 +443,7 @@ app.post('/api/campaigns', auth('admin'), async (req, res) => {
     await campaign.save();
   }
 
+  await logAudit(req, 'campaign_create', `Created campaign: ${campaign.name} with ${targets.length} targets`);
   io.emit('campaignCreated', campaign);
   res.status(201).json(campaign);
 });
@@ -467,6 +486,139 @@ app.get('/api/export/campaigns', auth(), async (req, res) => {
     };
   });
   res.json(data);
+});
+
+// ─── Campaign target details ──────────────────────────────────────────────────
+app.get('/api/campaigns/:id/targets', auth(), async (req, res) => {
+  const campaign = await Campaign.findById(req.params.id).lean();
+  if (!campaign) return res.status(404).json({ error: 'Not found' });
+  const result = (campaign.targets || []).map(t => {
+    const es = (campaign.emailStatus || []).find(e => e.email === t.email);
+    return {
+      email: t.email,
+      name: t.name || '',
+      department: t.department || '',
+      status: es?.status || 'pending',
+      openCount: es?.openCount || 0,
+      clickCount: es?.clickCount || 0,
+      lastOpenedAt: es?.lastOpenedAt || null,
+      lastClickedAt: es?.lastClickedAt || null,
+    };
+  });
+  res.json(result);
+});
+
+// ─── Send reminder ────────────────────────────────────────────────────────────
+app.post('/api/campaigns/:id/send-reminder', auth('admin'), async (req, res) => {
+  const campaign = await Campaign.findById(req.params.id);
+  if (!campaign) return res.status(404).json({ error: 'Not found' });
+  if (campaign.status !== 'active') return res.status(400).json({ error: 'Campaign is not active' });
+  const template = campaign.template;
+  let sent = 0;
+  for (const target of campaign.targets || []) {
+    const es = (campaign.emailStatus || []).find(e => e.email === target.email);
+    if (!es || es.openCount === 0) {
+      try {
+        const tid = trackingId(campaign._id, target.email);
+        const openPixel = `<img src="${API_BASE_URL}/track/open/${campaign._id}/${tid}" width="1" height="1" style="display:none" />`;
+        const clickUrl = `${API_BASE_URL}/track/click/${campaign._id}/${tid}`;
+        const html = template.content.replace(/\[PHISHING_LINK\]/g, `<a href="${clickUrl}">Click here</a>`) + openPixel;
+        await sendMail({ to: target.email, subject: `Reminder: ${template.subject}`, html });
+        sent++;
+      } catch {}
+    }
+  }
+  campaign.reminderSent = true;
+  await campaign.save();
+  await logAudit(req, 'reminder_sent', `Sent reminder for campaign: ${campaign.name} to ${sent} targets`);
+  res.json({ message: `Reminder sent to ${sent} unopened targets` });
+});
+
+// ─── Target Groups ────────────────────────────────────────────────────────────
+app.get('/api/target-groups', auth(), async (req, res) => {
+  const groups = await TargetGroup.find({ createdBy: req.user.userId }).sort({ createdAt: -1 });
+  res.json(groups);
+});
+
+app.post('/api/target-groups', auth(), async (req, res) => {
+  const { name, targets = [] } = req.body;
+  if (!name) return res.status(400).json({ error: 'Group name required' });
+  try {
+    const group = await TargetGroup.create({ name, targets, createdBy: req.user.userId });
+    res.status(201).json(group);
+  } catch (err) {
+    res.status(400).json({ error: err.message || 'Failed to create group' });
+  }
+});
+
+app.delete('/api/target-groups/:id', auth(), async (req, res) => {
+  const group = await TargetGroup.findOneAndDelete({ _id: req.params.id, createdBy: req.user.userId });
+  if (!group) return res.status(404).json({ error: 'Not found' });
+  res.json({ message: 'Deleted' });
+});
+
+// ─── Risk Scores ──────────────────────────────────────────────────────────────
+app.get('/api/employees/risk-scores', auth(), async (req, res) => {
+  if (!['admin', 'manager'].includes(req.user.role)) return res.status(403).json({ error: 'Forbidden' });
+  const campaigns = await Campaign.find().lean();
+  const map = {};
+  for (const c of campaigns) {
+    for (const t of c.targets || []) {
+      if (!t.email) continue;
+      if (!map[t.email]) map[t.email] = { email: t.email, name: t.name || '', openCount: 0, clickCount: 0, campaigns: 0 };
+      map[t.email].campaigns++;
+      const es = (c.emailStatus || []).find(e => e.email === t.email);
+      if (es) {
+        map[t.email].openCount += (es.openCount || 0);
+        map[t.email].clickCount += (es.clickCount || 0);
+      }
+    }
+  }
+  const result = Object.values(map).map(e => {
+    let riskLevel = 'Low';
+    let riskScore = 0;
+    if (e.clickCount > 0) { riskLevel = 'High'; riskScore = Math.min(100, e.clickCount * 30 + e.openCount * 10); }
+    else if (e.openCount > 0) { riskLevel = 'Medium'; riskScore = Math.min(60, e.openCount * 10); }
+    return { ...e, riskLevel, riskScore };
+  }).sort((a, b) => b.riskScore - a.riskScore);
+  res.json(result);
+});
+
+// ─── Training completion ──────────────────────────────────────────────────────
+app.post('/api/training/complete', auth(), async (req, res) => {
+  const { moduleId, score, passed } = req.body;
+  if (!moduleId) return res.status(400).json({ error: 'moduleId required' });
+  try {
+    const existing = await TrainingCompletion.findOne({ userId: req.user.userId, moduleId });
+    if (existing) {
+      existing.score = score;
+      existing.passed = passed;
+      existing.completedAt = new Date();
+      await existing.save();
+    } else {
+      await TrainingCompletion.create({ userId: req.user.userId, moduleId, score, passed });
+    }
+    res.json({ message: 'Progress saved' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to save progress' });
+  }
+});
+
+app.get('/api/training/progress', auth(), async (req, res) => {
+  const completions = await TrainingCompletion.find({ userId: req.user.userId }).lean();
+  res.json(completions);
+});
+
+app.get('/api/training/all-progress', auth(), async (req, res) => {
+  if (!['admin', 'manager'].includes(req.user.role)) return res.status(403).json({ error: 'Forbidden' });
+  const completions = await TrainingCompletion.find().populate('userId', 'username email').lean();
+  res.json(completions);
+});
+
+// ─── Audit Log ────────────────────────────────────────────────────────────────
+app.get('/api/audit-log', auth('admin'), async (req, res) => {
+  const logs = await AuditLog.find().sort({ createdAt: -1 }).limit(100).lean();
+  res.json(logs);
 });
 
 // ─── Phishing analyzer ───────────────────────────────────────────────────────

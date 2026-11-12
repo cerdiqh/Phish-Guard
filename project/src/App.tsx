@@ -12,6 +12,9 @@ import ForgotPassword from './components/ForgotPassword';
 import ResetPassword from './components/ResetPassword';
 import UserManagement from './components/UserManagement';
 import UserProfile from './components/UserProfile';
+import TargetGroups from './components/TargetGroups';
+import RiskScores from './components/RiskScores';
+import AuditLog from './components/AuditLog';
 import LandingPage from './components/LandingPage';
 import Chatbot from './components/Chatbot';
 import PhishingAnalyzer from './components/PhishingAnalyzer';
@@ -114,6 +117,12 @@ function App() {
         return <Training />;
       case 'analyzer':
         return <PhishingAnalyzer />;
+      case 'target-groups':
+        return <TargetGroups />;
+      case 'risk-scores':
+        return ['admin', 'manager'].includes(user.role) ? <RiskScores /> : null;
+      case 'audit-log':
+        return user.role === 'admin' ? <AuditLog /> : null;
       case 'users':
         return user.role === 'admin' ? <UserManagement currentUserId={user._id} /> : null;
       case 'profile':

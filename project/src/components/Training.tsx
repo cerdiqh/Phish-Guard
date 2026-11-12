@@ -1,5 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Play, Book, Award, CheckCircle, Clock, Users, ChevronRight, RotateCcw } from 'lucide-react';
+import axios from 'axios';
+
+const API_URL = () => (import.meta as any).env?.VITE_API_URL || 'http://localhost:5000';
+const headers = () => ({ Authorization: `Bearer ${localStorage.getItem('token')}` });
 
 const moduleContent: Record<string, { topics: { title: string; body: string }[] }> = {
   '1': {
@@ -142,6 +146,18 @@ const Training: React.FC = () => {
   const [completedModules, setCompletedModules] = useState<Record<string, boolean>>(loadProgress);
   const [selectedModule, setSelectedModule] = useState<string | null>(null);
   const [view, setView] = useState<'outline' | 'lesson' | 'quiz' | 'result'>('outline');
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    axios.get(`${API_URL()}/api/training/progress`, { headers: headers() })
+      .then(r => {
+        const dbProgress: Record<string, boolean> = {};
+        (r.data || []).forEach((c: any) => { if (c.passed) dbProgress[c.moduleId] = true; });
+        setCompletedModules(prev => ({ ...prev, ...dbProgress }));
+      })
+      .catch(() => {});
+  }, []);
   const [topicIndex, setTopicIndex] = useState(0);
   const [quizIndex, setQuizIndex] = useState(0);
   const [score, setScore] = useState(0);
@@ -187,11 +203,16 @@ const Training: React.FC = () => {
       setSelectedOption(null);
     } else {
       setView('result');
-      const passed = (score + (selectedOption === questions[quizIndex].answer ? 1 : 0)) >= Math.ceil(questions.length * 0.6);
-      if (passed && selectedModule) {
-        const updated = { ...completedModules, [selectedModule]: true };
+      const finalScoreVal = score + (selectedOption === questions[quizIndex].answer ? 1 : 0);
+      const passed = finalScoreVal >= Math.ceil(questions.length * 0.6);
+      if (selectedModule) {
+        const updated = { ...completedModules, [selectedModule]: passed };
         setCompletedModules(updated);
         saveProgress(updated);
+        const token = localStorage.getItem('token');
+        if (token) {
+          axios.post(`${API_URL()}/api/training/complete`, { moduleId: selectedModule, score: finalScoreVal, passed }, { headers: headers() }).catch(() => {});
+        }
       }
     }
   };

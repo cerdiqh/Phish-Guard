@@ -8,6 +8,7 @@ import { toast } from 'react-hot-toast';
 const API_URL = () => (import.meta as any).env?.VITE_API_URL || 'http://localhost:5000';
 
 interface Target { email: string; name: string; department: string; }
+interface TargetGroup { _id: string; name: string; targets: Target[]; }
 
 interface CampaignManagerProps {
   user?: any;
@@ -27,10 +28,12 @@ const CampaignManager: React.FC<CampaignManagerProps> = ({ user, campaigns, setC
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [templates, setTemplates] = useState<any[]>([]);
+  const [targetGroups, setTargetGroups] = useState<TargetGroup[]>([]);
   const [form, setForm] = useState({ name: '', description: '', templateId: '', scheduledAt: '' });
   const [targets, setTargets] = useState<Target[]>([]);
   const [manualTarget, setManualTarget] = useState({ email: '', name: '', department: '' });
   const [submitting, setSubmitting] = useState(false);
+  const [sendingReminder, setSendingReminder] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const headers = () => ({ Authorization: `Bearer ${localStorage.getItem('token')}` });
@@ -43,6 +46,10 @@ const CampaignManager: React.FC<CampaignManagerProps> = ({ user, campaigns, setC
     axios.get(`${API_URL()}/api/templates`, { headers: headers() })
       .then(r => setTemplates(r.data))
       .catch(() => console.error('Failed to fetch templates'));
+
+    axios.get(`${API_URL()}/api/target-groups`, { headers: headers() })
+      .then(r => setTargetGroups(r.data))
+      .catch(() => {});
 
     const socket = socketIOClient(API_URL());
     socket.on('campaignCreated', (campaign: any) => {
@@ -98,6 +105,26 @@ const CampaignManager: React.FC<CampaignManagerProps> = ({ user, campaigns, setC
       setCampaigns(prev => prev.map(x => ((x as any)._id || x.id) === id ? { ...x, status: newStatus as any } : x));
     } catch {
       toast.error('Failed to update campaign status');
+    }
+  };
+
+  const loadFromGroup = (group: TargetGroup) => {
+    const newTargets = group.targets.filter(t => !targets.some(x => x.email === t.email));
+    setTargets(prev => [...prev, ...newTargets]);
+    toast.success(`Loaded ${newTargets.length} targets from "${group.name}"`);
+  };
+
+  const handleSendReminder = async () => {
+    if (!selectedCampaign) return;
+    const id = (selectedCampaign as any)._id || selectedCampaign.id;
+    setSendingReminder(true);
+    try {
+      const { data } = await axios.post(`${API_URL()}/api/campaigns/${id}/send-reminder`, {}, { headers: headers() });
+      toast.success(data.message);
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || 'Failed to send reminder');
+    } finally {
+      setSendingReminder(false);
     }
   };
 
@@ -232,7 +259,14 @@ const CampaignManager: React.FC<CampaignManagerProps> = ({ user, campaigns, setC
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{selectedCampaign.name}</h2>
-            <button onClick={() => setSelectedCampaign(null)} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 text-sm">← Back</button>
+            <div className="flex items-center gap-3">
+              {selectedCampaign.status === 'active' && user?.role === 'admin' && (
+                <button onClick={handleSendReminder} disabled={sendingReminder} className="text-sm bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 hover:bg-orange-200 dark:hover:bg-orange-900/60 px-3 py-1.5 rounded-lg font-medium disabled:opacity-50 transition-colors">
+                  {sendingReminder ? 'Sending…' : '📧 Send Reminder'}
+                </button>
+              )}
+              <button onClick={() => setSelectedCampaign(null)} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 text-sm">← Back</button>
+            </div>
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 overflow-x-auto">
@@ -326,10 +360,21 @@ const CampaignManager: React.FC<CampaignManagerProps> = ({ user, campaigns, setC
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Targets ({targets.length})</label>
-                  <label className="text-xs text-blue-600 dark:text-blue-400 cursor-pointer hover:underline flex items-center">
-                    <Upload className="h-3 w-3 mr-1" /> Import CSV
-                    <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={handleCSV} />
-                  </label>
+                  <div className="flex items-center gap-3">
+                    {targetGroups.length > 0 && (
+                      <div className="relative">
+                        <select defaultValue="" onChange={e => { const g = targetGroups.find(x => x._id === e.target.value); if (g) loadFromGroup(g); e.target.value = ''; }}
+                          className="text-xs text-purple-600 dark:text-purple-400 border border-purple-300 dark:border-purple-600 rounded px-2 py-1 bg-white dark:bg-gray-700 cursor-pointer">
+                          <option value="">Load from Group…</option>
+                          {targetGroups.map(g => <option key={g._id} value={g._id}>{g.name} ({g.targets.length})</option>)}
+                        </select>
+                      </div>
+                    )}
+                    <label className="text-xs text-blue-600 dark:text-blue-400 cursor-pointer hover:underline flex items-center">
+                      <Upload className="h-3 w-3 mr-1" /> Import CSV
+                      <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={handleCSV} />
+                    </label>
+                  </div>
                 </div>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">CSV format: email, name, department (one per line)</p>
                 <div className="flex gap-2 mb-2">

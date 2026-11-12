@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Shield, LayoutDashboard, Megaphone, FileText, BarChart3, GraduationCap, Search, Users, User, Bell, Sun, Moon, LogOut } from 'lucide-react';
+import { Shield, LayoutDashboard, Megaphone, FileText, BarChart3, GraduationCap, Search, Users, User, Bell, Sun, Moon, LogOut, UserCheck, AlertTriangle, ClipboardList } from 'lucide-react';
 
 interface Notification { id: string; message: string; time: string; read: boolean; }
 
@@ -40,7 +40,12 @@ const Layout: React.FC<LayoutProps> = ({
     { id: 'reports', label: 'Reports', icon: BarChart3 },
     { id: 'training', label: 'Training', icon: GraduationCap },
     { id: 'analyzer', label: 'Analyzer', icon: Search },
-    ...(user?.role === 'admin' ? [{ id: 'users', label: 'Users', icon: Users }] : []),
+    { id: 'target-groups', label: 'Groups', icon: UserCheck },
+    ...(['admin', 'manager'].includes(user?.role) ? [{ id: 'risk-scores', label: 'Risk Scores', icon: AlertTriangle }] : []),
+    ...(user?.role === 'admin' ? [
+      { id: 'users', label: 'Users', icon: Users },
+      { id: 'audit-log', label: 'Audit Log', icon: ClipboardList },
+    ] : []),
   ];
 
   const unread = notifications.filter(n => !n.read).length;

@@ -14,9 +14,15 @@ const CampaignSchema = new mongoose.Schema({
     {
       email: String,
       status: String,
-      error: String
+      error: String,
+      openCount: { type: Number, default: 0 },
+      clickCount: { type: Number, default: 0 },
+      lastOpenedAt: Date,
+      lastClickedAt: Date,
     }
-  ]
-});
+  ],
+  scheduledAt: Date,
+  reminderSent: { type: Boolean, default: false },
+}, { timestamps: true });
 
 module.exports = mongoose.model('Campaign', CampaignSchema); 
