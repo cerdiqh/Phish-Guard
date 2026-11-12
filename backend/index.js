@@ -233,42 +233,55 @@ app.post('/api/register', authLimiter, async (req, res) => {
   const { username, email, password } = req.body;
   if (!username || !email || !password) return res.status(400).json({ error: 'All fields required' });
   if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+  const normalEmail = email.toLowerCase().trim();
   try {
+    // If account exists but is unverified, delete it and allow re-registration
+    const existing = await User.findOne({ email: normalEmail });
+    if (existing && !existing.emailVerified) {
+      await User.deleteOne({ _id: existing._id });
+    }
     const hashed = await bcrypt.hash(password, 12);
     const verifyToken = crypto.randomBytes(32).toString('hex');
     const emailEnabled = !!process.env.EMAIL_USER;
     const user = new User({
       username: username.trim(),
-      email: email.toLowerCase().trim(),
+      email: normalEmail,
       password: hashed,
       role: 'employee',
       emailVerified: !emailEnabled,
-      verifyToken: emailEnabled ? verifyToken : undefined,
+      verifyToken: emailEnabled ? verifyToken : null,
     });
     await user.save();
-    await AuditLog.create({ userEmail: email.toLowerCase().trim(), action: 'register', details: `New user registered: ${username}`, ip: req.ip });
+    await AuditLog.create({ userEmail: normalEmail, action: 'register', details: `New user registered: ${username}`, ip: req.ip });
     if (emailEnabled) {
-      await sendMail({
-        to: email.toLowerCase().trim(),
-        subject: 'Verify your PhishGuard account',
-        html: `<h2>Welcome to PhishGuard!</h2><p>Click the link below to verify your email address:</p><p><a href="${FRONTEND_URL}?verify=${verifyToken}" style="background:#2563eb;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;display:inline-block">Verify Email</a></p><p>If you didn't create this account, ignore this email.</p>`,
-      });
-      return res.status(201).json({ message: 'Registration successful! Check your email to verify your account.', requiresVerification: true });
+      try {
+        await sendMail({
+          to: normalEmail,
+          subject: 'Verify your PhishGuard account',
+          html: `<h2>Welcome to PhishGuard!</h2><p>Click the link below to verify your email address:</p><p><a href="${FRONTEND_URL}?verify=${verifyToken}" style="background:#2563eb;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;display:inline-block">Verify Email</a></p><p>If you didn't create this account, ignore this email.</p>`,
+        });
+        return res.status(201).json({ message: 'Registration successful! Check your email to verify your account.', requiresVerification: true });
+      } catch (mailErr) {
+        // Email failed — auto-verify so user isn't locked out
+        await User.updateOne({ _id: user._id }, { $set: { emailVerified: true }, $unset: { verifyToken: '' } });
+        return res.status(201).json({ message: 'User registered successfully', requiresVerification: false });
+      }
     }
     res.status(201).json({ message: 'User registered successfully', requiresVerification: false });
   } catch (err) {
-    if (err.code === 11000) return res.status(400).json({ error: 'Username or email already in use' });
+    if (err.code === 11000) return res.status(400).json({ error: 'Username already in use' });
     res.status(400).json({ error: 'Registration failed' });
   }
 });
 
 app.get('/api/verify-email/:token', async (req, res) => {
   try {
-    const user = await User.findOne({ verifyToken: req.params.token });
+    const user = await User.findOneAndUpdate(
+      { verifyToken: req.params.token },
+      { $set: { emailVerified: true }, $unset: { verifyToken: '' } },
+      { new: true }
+    );
     if (!user) return res.status(400).json({ error: 'Invalid or expired verification link' });
-    user.emailVerified = true;
-    user.verifyToken = undefined;
-    await user.save();
     res.json({ message: 'Email verified successfully! You can now log in.' });
   } catch {
     res.status(500).json({ error: 'Server error' });
@@ -308,7 +321,7 @@ app.post('/api/forgot-password', authLimiter, async (req, res) => {
         to: user.email,
         subject: 'PhishGuard password reset',
         html: `<p>Hi ${user.username},</p><p>Click the link below to reset your password. It expires in 1 hour.</p><p><a href="${link}">${link}</a></p><p>If you did not request this, ignore this email.</p>`,
-      }).catch(() => {});
+      });
     }
     res.json({ message: 'If that email is registered, a reset link has been sent.' });
   } catch {
